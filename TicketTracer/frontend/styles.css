@@ -1,0 +1,68 @@
+/* Add margin for the title */
+.h1-login {
+    text-align: center;
+    margin-bottom: 50px; /* Add space below the title */
+}
+
+.login-body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-container {
+    text-align: center; /* Center the content inside the login-container */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.login-div {
+    background-color: lightblue;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+}
+
+.input-container {
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    background-color: azure;
+    border-radius: 10px;
+}
+
+.cred-input {
+    width: 82%;
+    padding: 10px 10px 10px 0px;
+    font-size: 16px;
+    border: transparent;
+    border-radius: 5px;
+    background-color: transparent;
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.cred-button {
+    font-size: 16px;
+    cursor: pointer;
+    background-color: lightgreen;
+    border: 5px solid green;
+    border-radius: 30px;
+    padding: 10px 20px;
+}
+
+.icon {
+    position: relative;
+    pointer-events: none;
+    font-size: 20px;
+
+}

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <h1 class="h1-login">Ticket Tracer - Login page</h1>
+        <div class="login-div">
+            <div class="credentials">
+                <div class="input-container">
+                    <span class="icon">🖊️</span>
+                    <input id="username" class="cred-input" type="text" placeholder="Username:">
+                </div>
+
+                <div class="input-container">
+                    <span class="icon">🔒</span>
+                    <input id="password" class="cred-input" type="password" placeholder="Password:">
+                </div>
+
+                <div class="button-container">
+                    <button id="login" class="cred-button">Login</button>
+                    <button id="register" class="cred-button">Register</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const Codes = {
+        "SUCCESS": 1,
+        "FAIL": 2,
+        "UNAUTHORIZED": 3,
+        "NOTFOUND": 4,
+        "FOUND": 5
+    }
+
+    const get_creds = () => {
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        return { username, password };
+    }
+
+    // Event listener for the Login button
+    document.getElementById("login").addEventListener("click", async () => {
+        try {
+            const { username, password } = get_creds();
+            const response = await fetch("/login", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                console.log("Login failed", result);
+            } else {
+                console.log("Login successful", result);
+            }
+        } catch (error) {
+            console.log(error);
+        }
+    });
+
+    document.getElementById("register").addEventListener("click", async () => {
+        try {
+            const { username, password } = get_creds(); 
+            const response = await fetch("/register", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            const result = await response.json();
+
+            switch (result.code) {
+                case Codes["SUCCESS"]:
+                    console.log("Login succesfull")
+                    window.location.pathname = '/';
+                    break;
+
+                case Codes["FOUND"]:
+                    console.log("User already exists")
+                    username.value = "";
+                    password.value = "";
+                    break;
+
+                case Codes["FAIL"]:
+                default:
+                    console.log("Failure: something unexpected happened")
+                    username.vallue = "";
+                    password.value = "";
+            }
+        } catch (error) {
+            console.log(error);
+        }
+    });
+</script>
+
+</body>
+</html>
