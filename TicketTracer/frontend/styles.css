@@ -1,7 +1,6 @@
-/* Add margin for the title */
 .h1-login {
     text-align: center;
-    margin-bottom: 50px; /* Add space below the title */
+    margin-bottom: 50px;
 }
 
 .login-body {
@@ -11,37 +10,59 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    background-color: #121212;
+    color: #606060;
+    transform: scale(120%);
 }
 
 .login-container {
-    text-align: center; /* Center the content inside the login-container */
+    text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
 .login-div {
-    background-color: lightblue;
+    position:relative;
+    background-color: #1e1e1e;
     padding: 20px;
     border-radius: 10px;
     width: 300px;
+    box-shadow: 0px 0px 20px rgba(0,0,0,0.5);
 }
 
 .input-container {
     width: 100%;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    background-color: azure;
+    margin: 10px 0;
+    background-color: #2c2c2c;
     border-radius: 10px;
+    display: flex;
+    align-items: center;
+    box-shadow: 5px 3px 20px rgba(0,0,0,0.5);
 }
 
 .cred-input {
-    width: 82%;
-    padding: 10px 10px 10px 0px;
+    width: 100%;
+    padding: 10px 10px 10px 5px;
     font-size: 16px;
-    border: transparent;
+    border: none;
     border-radius: 5px;
     background-color: transparent;
+    color: #f0f0f0;
+}
+
+.cred-input:hover::placeholder {
+    color: #999;
+}
+
+.cred-input::placeholder {
+    color: #888;
+}
+
+.cred-input:focus {
+    outline: none;
+    box-shadow: 0 0 5px rgba(100, 100, 255, 0.2); /* subtle glow */
+    border: 1px solid #666;
 }
 
 .button-container {
@@ -54,15 +75,42 @@
 .cred-button {
     font-size: 16px;
     cursor: pointer;
-    background-color: lightgreen;
-    border: 5px solid green;
+    background-color: #333;
+    border: 2px solid #555;
     border-radius: 30px;
     padding: 10px 20px;
+    color: #f0f0f0;
+    transition: background-color 0.5s ease,
+                border-color 0.5s ease;
+    box-shadow: 3px 5px 20px rgba(0,0,0,0.5);
+}
+
+.cred-button:hover {
+    background-color: #444;
+    border-color: #777;
+    transform: scale(1.05);
+}
+
+.cred-button:active {
+    transform: scale(0.97);
 }
 
 .icon {
     position: relative;
+    padding-left: 5px;
     pointer-events: none;
     font-size: 20px;
 
+}
+
+.err-mess {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 5px;
+    font-weight: bold;
+    color: darkred;
+    white-space: nowrap;
 }

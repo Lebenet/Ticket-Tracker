@@ -10,6 +10,7 @@
     <div class="login-container">
         <h1 class="h1-login">Ticket Tracer - Login page</h1>
         <div class="login-div">
+            <p id="err-mess" class="err-mess"></p>
             <div class="credentials">
                 <div class="input-container">
                     <span class="icon">🖊️</span>
@@ -44,6 +45,9 @@
         return { username, password };
     }
 
+    let errMess = document.getElementById("err-mess");
+    console.log(errMess.innerHTML)
+
     // Event listener for the Login button
     document.getElementById("login").addEventListener("click", async () => {
         try {
@@ -60,11 +64,35 @@
             });
 
             const result = await response.json();
-            if (!response.ok) {
-                console.log("Login failed", result);
-            } else {
-                console.log("Login successful", result);
+
+            switch (result.code) {
+                case Codes["SUCCESS"]:
+                    console.log("Login succesfull");
+                    window.location.pathname = '/';
+                    break;
+
+                case Codes["NOTFOUND"]:
+                    console.log("User doesn't exist");
+                    errMess.innerHTML = "User doesn't exist";
+                    username.innerHTML = "";
+                    password.innerHTML = "";
+                    break;
+
+                case Codes["UNAUTHORIZED"]:;
+                    console.log("Wrong password")
+                    errMess.innerHTML = "Wrong password";
+                    username.innerHTML = "";
+                    password.innerHTML = "";
+                    break;
+
+                case Codes["FAIL"]:
+                default:
+                    console.log("Failure: something unexpected happened");
+                    errMess.innerHTML = "Failure: something unexpected happened";
+                    username.vallue = "";
+                    password.innerHTML = "";
             }
+
         } catch (error) {
             console.log(error);
         }
@@ -88,21 +116,23 @@
 
             switch (result.code) {
                 case Codes["SUCCESS"]:
-                    console.log("Login succesfull")
+                    console.log("Register succesfull");
                     window.location.pathname = '/';
                     break;
 
                 case Codes["FOUND"]:
-                    console.log("User already exists")
-                    username.value = "";
-                    password.value = "";
+                    console.log("Username already in use");
+                    errMess.innerHTML = "Username already in use";
+                    username.innerHTML = "";
+                    password.innerHTML = "";
                     break;
 
                 case Codes["FAIL"]:
                 default:
-                    console.log("Failure: something unexpected happened")
-                    username.vallue = "";
-                    password.value = "";
+                    console.log("Failure: something unexpected happened");
+                    errMess.innerHTML = "Failure: something unexpected happened";
+                    username.innerHTML = "";
+                    password.innerHTML = "";
             }
         } catch (error) {
             console.log(error);
