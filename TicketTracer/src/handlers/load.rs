@@ -16,6 +16,20 @@ pub async fn get_homepage() -> Html<String> {
     Html(page)
 }
 
+pub async fn get_profile(
+    cookies: CookieJar
+) -> impl IntoResponse {
+    if let Some(_) = cookies.get("session_id") {
+        let page: String = fs::read_to_string("frontend/profile.html")
+            .await
+            .unwrap_or_else(|_| { "<h1> Could not load profile. </h1>".to_string() });
+
+        Html(page).into_response()
+    } else {
+        Redirect::to("/login").into_response()
+    }
+}
+
 pub async fn get_login_page(
     Extension(session_store): Extension<SessionStore>,
     cookies: CookieJar

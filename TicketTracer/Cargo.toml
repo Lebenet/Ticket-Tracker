@@ -20,3 +20,5 @@ tower = "0.5.2"
 cookie = "0.18.1"
 axum-extra = { version = "0.10.1", features = ["cookie", "cookie-key-expansion", "cookie-private", "cookie-signed"] }
 time = "0.3.41"
+axum-server = { version = "0.7.2", features = ["tls-rustls", "tokio-rustls"] }
+rustls = "0.23.25"

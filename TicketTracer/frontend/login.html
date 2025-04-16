@@ -6,7 +6,7 @@
     <title>Login</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="login-body">
+<body class="centered-body">
     <div class="login-container">
         <h1 class="h1-login">Ticket Tracer - Login page</h1>
         <div class="login-div">
@@ -60,7 +60,8 @@
                 body: JSON.stringify({
                     username: username,
                     password: password
-                })
+                }),
+                credentials: "include"
             });
 
             const result = await response.json();
@@ -74,23 +75,23 @@
                 case Codes["NOTFOUND"]:
                     console.log("User doesn't exist");
                     errMess.innerHTML = "User doesn't exist";
-                    username.innerHTML = "";
-                    password.innerHTML = "";
+                    username.value = "";
+                    password.value = "";
                     break;
 
                 case Codes["UNAUTHORIZED"]:;
                     console.log("Wrong password")
                     errMess.innerHTML = "Wrong password";
-                    username.innerHTML = "";
-                    password.innerHTML = "";
+                    username.value = "";
+                    password.value = "";
                     break;
 
                 case Codes["FAIL"]:
                 default:
                     console.log("Failure: something unexpected happened");
                     errMess.innerHTML = "Failure: something unexpected happened";
-                    username.vallue = "";
-                    password.innerHTML = "";
+                    username.value = "";
+                    password.value = "";
             }
 
         } catch (error) {
