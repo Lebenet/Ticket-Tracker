@@ -37,7 +37,7 @@ pub async fn login(
             if verify(&user.password, &row.password_hash).unwrap_or(false) {
 
                 let cookie = session_cookie(
-                    session_store, user.username.clone()).await;
+                    session_store, row.id).await;
 
                 let mut response = code_response!(Codes::SUCCESS);
                 response.headers_mut().insert(
@@ -94,14 +94,13 @@ pub async fn register(
         .unwrap_or_else(|_| None);
 
     if check.is_some() {
-        println!("user found");
         return code_response!(Codes::FOUND);
     }
 
     let hashed_password = hash(&user.password, DEFAULT_COST).unwrap();
 
     let result = sqlx::query!(
-        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+        "INSERT INTO users (username, password_hash) VALUES (?, ?);",
         user.username,
         hashed_password
     )
@@ -109,9 +108,9 @@ pub async fn register(
         .await;
 
     match result {
-        Ok(_) => {
+        Ok(r) => {
             let cookie = session_cookie(
-                session_store, user.username.clone()).await;
+                session_store, r.last_insert_id() as i32).await;
 
             let mut response = code_response!(Codes::SUCCESS);
             response.headers_mut().insert(
@@ -134,23 +133,24 @@ pub async fn profile(
     // check that session id is correct
     let result = check_session(State(pool.clone()), Extension(session_store), cookies.clone()).await;
     match result {
-        (code @ (Codes::UNAUTHORIZED | Codes::NOTFOUND), cookie, _) => {
+        ((Codes::UNAUTHORIZED | Codes::NOTFOUND), cookie, _) => {
             let clr_cookie = del_session_cookie(cookie.unwrap().clone());
-            (cookies.remove(clr_cookie), code_response!(code)).into_response()
+            (cookies.remove(clr_cookie), code_response!(Codes::FAIL)).into_response()
         }
         (Codes::FOUND, _, user_opt) => {
 
             let user = user_opt.unwrap();
 
             // fetch projects where user's authorized (including his own)
-            let projects: Vec<Project> = sqlx::query_as::<_, Project>(
-                "SELECT * FROM Projects AS pr
-          JOIN Permissions AS perm ON pr.id = perm.project_id
-          WHERE perm.user_id = ?")
-                .bind(user.id)
-                .fetch_all(&*pool)
-                .await
-                .unwrap_or_else(|_| vec![]);
+            let projects: Vec<Project> =
+                sqlx::query_as::<_, Project>(
+            "SELECT * FROM Projects AS pr
+                JOIN Permissions AS perm ON pr.id = perm.project_id
+                WHERE perm.user_id = ?")
+                    .bind(user.id)
+                    .fetch_all(&*pool)
+                    .await
+                    .unwrap_or_else(|_| vec![]);
 
             // fetch other authorized users on each project, limit 5
             let mut users: Vec<Vec<Profile>> = vec![];
@@ -159,11 +159,11 @@ pub async fn profile(
                 // get list of 5 other members
                 let p_users: Vec<Profile> =
                     sqlx::query_as::<_, Profile>(
-                        "SELECT u.id, u.username FROM users AS u
-            JOIN permissions AS perm ON u.id = perm.user_id
-            WHERE perm.project_id = ?
-            AND u.id != ?
-            LIMIT 5")
+                "SELECT u.id, u.username FROM users AS u
+                    JOIN permissions AS perm ON u.id = perm.user_id
+                    WHERE perm.project_id = ?
+                    AND u.id != ?
+                    LIMIT 5")
                         .bind(p.id)
                         .bind(user.id)
                         .fetch_all(&*pool)
@@ -174,11 +174,11 @@ pub async fn profile(
                 // get total count of those users
                 let pm_c =
                     sqlx::query_as::<_, Int>("
-            SELECT COUNT(*) AS value FROM
-            (SELECT u.id, u.username FROM users AS u
-            JOIN permissions AS perm ON u.id = perm.user_id
-            WHERE perm.project_id = ?
-            AND u.id != ?) as subquerry;")
+                    SELECT COUNT(*) AS value FROM
+                    (SELECT u.id, u.username FROM users AS u
+                    JOIN permissions AS perm ON u.id = perm.user_id
+                    WHERE perm.project_id = ?
+                    AND u.id != ?) as subquerry;")
                         .bind(p.id)
                         .bind(user.id)
                         .fetch_one(&*pool)
@@ -192,29 +192,71 @@ pub async fn profile(
 
             // send response to client
             return Json(json!(
-        {
-            "user": user,
-            "projects": projects,
-            "users": users,
-            "count": count,
-            "code": Codes::SUCCESS
-        }
-    )).into_response();
-        }
-        _ => { // Redirect to /login if no valid session
-            Redirect::to("/login").into_response()
-        }
+            {
+                "user": user,
+                "projects": projects,
+                "users": users,
+                "count": count,
+                "code": Codes::SUCCESS
+            }
+            )).into_response();
+    }
+    _ => { // Redirect to /login if no valid session
+        Redirect::to("/login").into_response()
+    }
     }
 }
 
 pub async fn change_username(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(new_username): Json<LoginRequest>
 ) -> impl IntoResponse {
     let response = check_session(State(pool.clone()), Extension(session_store), cookies.clone()).await;
     match response {
-        _ => { code_response!(Codes::FAIL) } // Not Yet Implemented
+        ((Codes::UNAUTHORIZED | Codes::NOTFOUND), cookie, _) => {
+            let clr_cookie = del_session_cookie(cookie.unwrap().clone());
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT)).into_response()
+        }
+        (Codes::FOUND, _, user_opt) => {
+            let user = user_opt.unwrap();
+
+            if verify(&new_username.password, &user.password_hash).unwrap_or(false) {
+
+                let check: Result<Option<Profile>, Error> =
+                    sqlx::query_as::<_, Profile>("SELECT id, username FROM Users WHERE username = ?")
+                        .bind(&new_username.username)
+                        .fetch_optional(&*pool)
+                        .await;
+
+                match check {
+                    Ok(row) => {
+                        // counter-intuitive, we actually want the row to not return anything
+                        if row.is_none() {
+                            // username not found, free to use
+                            let result = sqlx::query!("UPDATE Users SET username = ? WHERE id = ?",
+                        &new_username.username, user.id)
+                                .execute(&*pool)
+                                .await;
+
+                            match result {
+                                Ok(_) => { code_response!(Codes::SUCCESS) }
+                                Err(_) => { code_response!(Codes::FAIL) }
+                            }
+                        } else {
+                            // so if it returns, then username found and can't use it
+                            code_response!(Codes::FOUND) }
+                        }
+
+                    Err(_) => { code_response!(Codes::FAIL) }
+                }
+            } else {
+                // wrong password
+                code_response!(Codes::UNAUTHORIZED)
+            }
+        }
+        _ => { Redirect::to("/login").into_response() }
     }
 }
 
@@ -233,26 +275,26 @@ async fn check_session(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
     cookies: CookieJar
-) -> (Codes, Option<Cookie<'static>>, Option<Profile>) {
+) -> (Codes, Option<Cookie<'static>>, Option<User>) {
     if let Some(cookie) = cookies.get("session_id") {
         // get session id from cookie jar
         let session_id: String = cookie.value().to_string();
 
-        // fetch username from server sessions storage
-        let username: String =
+        // fetch user id from server sessions storage
+        let user_id: i32 =
             session_store.lock().await
                 .get(&session_id)
                 .cloned()
-                .unwrap_or_else(|| "".to_string());
+                .unwrap_or_else(|| 0);
 
-        if username == "" {
+        if user_id == 0 {
             return (Codes::UNAUTHORIZED, Some(cookie.clone()), None);
         }
 
         // fetch user from database
-        let user_opt: Option<Profile> =
-            sqlx::query_as::<_, Profile>("SELECT id, username FROM users WHERE username = ?")
-                .bind(username)
+        let user_opt: Option<User> =
+            sqlx::query_as::<_, User>("SELECT * FROM Users WHERE id = ?")
+                .bind(user_id)
                 .fetch_optional(&*pool)
                 .await
                 .unwrap_or_else(|_| None);
@@ -274,9 +316,9 @@ fn generate_session_id() -> String {
         .collect()
 }
 
-async fn session_cookie(storage: SessionStore, username: String) -> Cookie<'static> {
+async fn session_cookie(storage: SessionStore, user_id: i32) -> Cookie<'static> {
     let session_id = generate_session_id();
-    storage.lock().await.insert(session_id.clone(), username);
+    storage.lock().await.insert(session_id.clone(), user_id);
 
     let mut cookie = Cookie::new("session_id", session_id);
     cookie.set_path("/");
@@ -295,3 +337,51 @@ fn del_session_cookie(cookie: Cookie<'static>) -> Cookie<'static> {
 
     cleared_cookie.into_owned()
 }
+
+/* DEBUG
+
+use axum::{body::Body};
+use http_body_util::BodyExt;
+use bytes::Bytes;
+
+pub async fn print_and_return_response(response: Response<Body>) -> Response<Body> {
+    let (parts, body) = response.into_parts();
+
+    // Buffer the full body
+    match body.collect().await {
+        Ok(collected) => {
+            let bytes = collected.to_bytes();
+
+            // Print the body as UTF-8 string if possible
+            if let Ok(body_str) = std::str::from_utf8(&bytes) {
+                println!("Response body: {}", body_str);
+            } else {
+                println!("Response body: <non-UTF8 data>");
+            }
+
+            // Rebuild response with original parts and cloned body
+            Response::from_parts(parts, Body::from(bytes))
+        }
+        Err(err) => {
+            println!("Failed to read body: {}", err);
+            Response::from_parts(parts, Body::from("Error reading body"))
+        }
+    }
+}
+
+use http::header::{HeaderMap, HeaderName};
+
+pub async fn print_headers(response: Response) -> Response {
+    // Get the headers from the response
+    let headers: &HeaderMap = &response.headers();
+
+    // Print each header's name and value
+    for (key, value) in headers.iter() {
+        println!("Header: {}: {:?}", key.as_str(), value);
+    }
+
+    // Return the response as is
+    response
+}
+
+*/

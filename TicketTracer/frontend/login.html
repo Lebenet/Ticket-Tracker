@@ -69,7 +69,7 @@
             switch (result.code) {
                 case Codes["SUCCESS"]:
                     console.log("Login succesfull");
-                    window.location.pathname = '/';
+                    window.location.pathname = '/profile';
                     break;
 
                 case Codes["NOTFOUND"]:
@@ -118,7 +118,7 @@
             switch (result.code) {
                 case Codes["SUCCESS"]:
                     console.log("Register succesfull");
-                    window.location.pathname = '/';
+                    window.location.href = '/profile';
                     break;
 
                 case Codes["FOUND"]:

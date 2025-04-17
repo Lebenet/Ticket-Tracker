@@ -28,7 +28,7 @@ pub struct LoginRequest {
     pub password: String
 }
 
-//? Ugly, only temporary
+// to send pretty ints with json
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 pub struct Int {
     pub value: i32
@@ -51,7 +51,7 @@ pub enum Codes {
     REDIRECT = 6
 }
 
-pub type SessionStore = Arc<Mutex<HashMap<String, String>>>;
+pub type SessionStore = Arc<Mutex<HashMap<String, i32>>>;
 pub fn new_session_store() -> SessionStore {
     Arc::new(Mutex::new(HashMap::new()))
 }

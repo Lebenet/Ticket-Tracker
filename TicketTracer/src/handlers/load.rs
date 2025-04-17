@@ -63,3 +63,9 @@ pub async fn get_users(State(pool): State<Arc<MySqlPool>>) -> Json<Vec<User>> {
 
     Json(users)
 }
+pub async fn get_project_page(
+    Extension(session_store): Extension<SessionStore>,
+    cookies: CookieJar
+) -> impl IntoResponse {
+    Json({"not implemented"}).into_response()
+}
