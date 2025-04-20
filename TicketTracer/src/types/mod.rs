@@ -22,10 +22,22 @@ pub struct Project {
     pub owner_id: i32
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PasswordRequest {
+    pub old: String,
+    pub new: String
+}
+
+impl PasswordRequest {
+    pub fn is_valid(&self) -> bool {
+        self.old != self.new && self.old != "" && self.new != ""
+    }
 }
 
 // to send pretty ints with json

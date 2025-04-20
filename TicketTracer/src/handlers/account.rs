@@ -1,6 +1,6 @@
 macro_rules! code_response {
-    ($code:expr) => {
-        Json(json!({ "code": $code })).into_response()
+    ($code:expr, $message:expr) => {
+        Json(json!({ "code": $code, "message": $message })).into_response()
     };
 }
 
@@ -20,7 +20,7 @@ pub async fn login(
     Json(user): Json<LoginRequest>
 ) -> impl IntoResponse {
     if user.username.is_empty() || user.password.is_empty() {
-        return code_response!(Codes::FAIL)
+        return code_response!(Codes::FAIL, "Invalid username or password");
     }
 
     // Query the database for the user by username
@@ -39,7 +39,7 @@ pub async fn login(
                 let cookie = session_cookie(
                     session_store, row.id).await;
 
-                let mut response = code_response!(Codes::SUCCESS);
+                let mut response = code_response!(Codes::SUCCESS, "");
                 response.headers_mut().insert(
                     axum::http::header::SET_COOKIE,
                     cookie.to_string().parse().unwrap(),
@@ -48,11 +48,11 @@ pub async fn login(
                 response
 
             } else {
-                code_response!(Codes::UNAUTHORIZED)
+                code_response!(Codes::UNAUTHORIZED, "Wrong password")
             }
         }
-        Err(Error::RowNotFound) => code_response!(Codes::NOTFOUND),
-        Err(_) => code_response!(Codes::FAIL)
+        Err(Error::RowNotFound) => code_response!(Codes::NOTFOUND, "User not found"),
+        Err(_) => code_response!(Codes::FAIL, "Internal error")
     }
 }
 
@@ -82,7 +82,7 @@ pub async fn register(
     Json(user): Json<LoginRequest>
 ) -> impl IntoResponse {
     if user.username.is_empty() || user.password.is_empty() {
-        return code_response!(Codes::FAIL)
+        return code_response!(Codes::FAIL, "Invalid username or password")
     }
 
     let check = sqlx::query_as::<_, User>(
@@ -94,7 +94,7 @@ pub async fn register(
         .unwrap_or_else(|_| None);
 
     if check.is_some() {
-        return code_response!(Codes::FOUND);
+        return code_response!(Codes::FOUND, "Username already in use");
     }
 
     let hashed_password = hash(&user.password, DEFAULT_COST).unwrap();
@@ -112,7 +112,7 @@ pub async fn register(
             let cookie = session_cookie(
                 session_store, r.last_insert_id() as i32).await;
 
-            let mut response = code_response!(Codes::SUCCESS);
+            let mut response = code_response!(Codes::SUCCESS, "");
             response.headers_mut().insert(
                 axum::http::header::SET_COOKIE,
                 cookie.to_string().parse().unwrap(),
@@ -120,7 +120,7 @@ pub async fn register(
 
             response
         },
-        Err(_) => code_response!(Codes::FAIL)
+        Err(_) => code_response!(Codes::FAIL, "Internal error")
     }
 
 }
@@ -131,16 +131,13 @@ pub async fn profile(
     cookies: CookieJar
 ) -> impl IntoResponse {
     // check that session id is correct
-    let result = check_session(State(pool.clone()), Extension(session_store), cookies.clone()).await;
+    let result = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
     match result {
-        ((Codes::UNAUTHORIZED | Codes::NOTFOUND), cookie, _) => {
-            let clr_cookie = del_session_cookie(cookie.unwrap().clone());
-            (cookies.remove(clr_cookie), code_response!(Codes::FAIL)).into_response()
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
         }
-        (Codes::FOUND, _, user_opt) => {
-
-            let user = user_opt.unwrap();
-
+        (Codes::FOUND, _, Some(user)) => {
             // fetch projects where user's authorized (including his own)
             let projects: Vec<Project> =
                 sqlx::query_as::<_, Project>(
@@ -213,47 +210,45 @@ pub async fn change_username(
     cookies: CookieJar,
     Json(new_username): Json<LoginRequest>
 ) -> impl IntoResponse {
-    let response = check_session(State(pool.clone()), Extension(session_store), cookies.clone()).await;
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
     match response {
-        ((Codes::UNAUTHORIZED | Codes::NOTFOUND), cookie, _) => {
-            let clr_cookie = del_session_cookie(cookie.unwrap().clone());
-            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT)).into_response()
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
         }
-        (Codes::FOUND, _, user_opt) => {
-            let user = user_opt.unwrap();
-
-            if verify(&new_username.password, &user.password_hash).unwrap_or(false) {
-
-                let check: Result<Option<Profile>, Error> =
-                    sqlx::query_as::<_, Profile>("SELECT id, username FROM Users WHERE username = ?")
-                        .bind(&new_username.username)
-                        .fetch_optional(&*pool)
-                        .await;
-
-                match check {
-                    Ok(row) => {
-                        // counter-intuitive, we actually want the row to not return anything
-                        if row.is_none() {
-                            // username not found, free to use
-                            let result = sqlx::query!("UPDATE Users SET username = ? WHERE id = ?",
-                        &new_username.username, user.id)
-                                .execute(&*pool)
-                                .await;
-
-                            match result {
-                                Ok(_) => { code_response!(Codes::SUCCESS) }
-                                Err(_) => { code_response!(Codes::FAIL) }
-                            }
-                        } else {
-                            // so if it returns, then username found and can't use it
-                            code_response!(Codes::FOUND) }
-                        }
-
-                    Err(_) => { code_response!(Codes::FAIL) }
-                }
-            } else {
+        (Codes::FOUND, _, Some(user)) => {
+            // check password
+            if !verify(&new_username.password, &user.password_hash).unwrap_or(false) {
                 // wrong password
-                code_response!(Codes::UNAUTHORIZED)
+                return code_response!(Codes::UNAUTHORIZED, "Wrong password");
+            }
+
+            let check: Result<Option<Profile>, Error> =
+                sqlx::query_as::<_, Profile>("SELECT id, username FROM Users WHERE username = ?")
+                    .bind(&new_username.username)
+                    .fetch_optional(&*pool)
+                    .await;
+
+            match check {
+                Ok(row) => {
+                    // counter-intuitive, we actually want the row to not return anything
+                    if row.is_none() {
+                        // username not found, free to use
+                        let result = sqlx::query!("UPDATE Users SET username = ? WHERE id = ?",
+                    &new_username.username, user.id)
+                            .execute(&*pool)
+                            .await;
+
+                        match result {
+                            Ok(_) => { code_response!(Codes::SUCCESS, "") }
+                            Err(_) => { code_response!(Codes::FAIL, "Internal error") }
+                        }
+                    } else {
+                        // so if it returns, then username found and can't use it
+                        code_response!(Codes::FOUND, "Username already in use") }
+                    }
+
+                Err(_) => { code_response!(Codes::FAIL, "Internal error") }
             }
         }
         _ => { Redirect::to("/login").into_response() }
@@ -263,48 +258,83 @@ pub async fn change_username(
 pub async fn reset_password(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(p_request): Json<PasswordRequest>
 ) -> impl IntoResponse {
-    let response = check_session(State(pool.clone()), Extension(session_store), cookies.clone()).await;
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
     match response {
-        _ => { code_response!(Codes::FAIL) } // Not Yet Implemented
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            // sending "Codes::REDIRECT" back to the user to have an opportunity to tell the user
+            // something is wrong with their session
+            println!("invalid session");
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        }
+        (Codes::FOUND, _, Some(user)) => {
+            // Check that password request doesn't contain empty passwords
+            if !p_request.is_valid() {
+                println!("Invalid password request");
+                return code_response!(Codes::UNAUTHORIZED, "Invalid password request")
+            }
+
+            // Check password
+            if !verify(p_request.old, &user.password_hash).unwrap_or(false) {
+                println!("Wrong password");
+                return code_response!(Codes::UNAUTHORIZED, "Wrong password");
+            }
+
+            // Update password
+            let password_hash = hash(p_request.new, DEFAULT_COST).unwrap();
+            let result =
+                sqlx::query!("UPDATE Users SET password_hash = ? WHERE id = ?",
+                             password_hash, user.id)
+                    .execute(&*pool)
+                    .await;
+
+            // Send response to client
+            match result {
+                Ok(_) => { println!("success"); code_response!(Codes::SUCCESS, "") }
+                Err(_) => { println!("fail"); code_response!(Codes::FAIL, "Internal error") }
+            }
+        }
+        // Here just a redirect because no session cookie was found
+        _ => { println!("no session found"); Redirect::to("/login").into_response() }
     }
 }
 
 async fn check_session(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: &CookieJar
 ) -> (Codes, Option<Cookie<'static>>, Option<User>) {
-    if let Some(cookie) = cookies.get("session_id") {
-        // get session id from cookie jar
-        let session_id: String = cookie.value().to_string();
+    let cookie: Cookie = match cookies.get("session_id") {
+        Some(c) => c.to_owned(),
+        None => return (Codes::REDIRECT, None, None)
+    };
 
-        // fetch user id from server sessions storage
-        let user_id: i32 =
-            session_store.lock().await
-                .get(&session_id)
-                .cloned()
-                .unwrap_or_else(|| 0);
+    // get session id from cookie jar
+    let session_id: String = cookie.value().to_string();
 
-        if user_id == 0 {
-            return (Codes::UNAUTHORIZED, Some(cookie.clone()), None);
-        }
+    // fetch user id from server sessions storage
+    let user_id: i32 =
+        session_store.lock().await
+            .get(&session_id)
+            .cloned()
+            .unwrap_or(0);
+    if user_id == 0 {
+        return (Codes::UNAUTHORIZED, Some(cookie), None);
+    }
 
-        // fetch user from database
-        let user_opt: Option<User> =
-            sqlx::query_as::<_, User>("SELECT * FROM Users WHERE id = ?")
-                .bind(user_id)
-                .fetch_optional(&*pool)
-                .await
-                .unwrap_or_else(|_| None);
-
-        if user_opt.is_none() {
-            return (Codes::NOTFOUND, Some(cookie.clone()), None);
-        }
-        (Codes::FOUND, None, user_opt)
-    } else {
-        (Codes::REDIRECT, None, None)
+    // fetch user from database
+    let user: Option<User> =
+        sqlx::query_as::<_, User>("SELECT * FROM Users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(&*pool)
+            .await
+            .unwrap_or(None);
+    match user {
+        None => (Codes::NOTFOUND, Some(cookie), None),
+        _ => (Codes::FOUND, None, user)
     }
 }
 
@@ -320,22 +350,23 @@ async fn session_cookie(storage: SessionStore, user_id: i32) -> Cookie<'static> 
     let session_id = generate_session_id();
     storage.lock().await.insert(session_id.clone(), user_id);
 
-    let mut cookie = Cookie::new("session_id", session_id);
-    cookie.set_path("/");
-    cookie.set_http_only(true);
-    cookie.set_max_age(Duration::hours(1));
-
-    cookie.into_owned()
+    new_cookie("session_id", &session_id, "/",
+               true, Duration::hours(1))
 }
 
 fn del_session_cookie(cookie: Cookie<'static>) -> Cookie<'static> {
+    // used to ensure same path and http_only
+    new_cookie(cookie.name(), "", cookie.path().unwrap_or("/"),
+               cookie.http_only().unwrap_or(false), Duration::seconds(0))
+}
 
-    let mut cleared_cookie = Cookie::new(cookie.name(), "");
-    cleared_cookie.set_path(cookie.path().unwrap_or_else(|| "/"));
-    cleared_cookie.set_http_only(cookie.http_only().unwrap_or_else(|| false));
-    cleared_cookie.set_max_age(Duration::seconds(0));
+fn new_cookie(name: &str, value: &str, path: &str, http_only: bool, lifetime: Duration) -> Cookie<'static> {
+    let mut cookie = Cookie::new(name, value);
+    cookie.set_path(path);
+    cookie.set_http_only(http_only);
+    cookie.set_max_age(lifetime);
 
-    cleared_cookie.into_owned()
+    cookie.into_owned()
 }
 
 /* DEBUG

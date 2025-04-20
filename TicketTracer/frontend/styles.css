@@ -97,6 +97,11 @@
     transform: scale(0.97);
 }
 
+.cred-button:focus, .cred-button:focus-visible {
+    outline: none;
+    border: 2px solid #999;
+}
+
 .icon {
     position: relative;
     padding-left: 5px;

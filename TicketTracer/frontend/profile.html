@@ -15,7 +15,7 @@ color: #999999;">
         <p style="margin-top: 0px;">Credentials:</p>
         <div class="username">
             <span class="icon">🧍</span>
-            <p id="username-p" class="username-p">Lebenet</p>
+            <p id="username-p" class="username-p">Username</p>
         </div>
         <div class="change-creds">
             <p style="margin-left: 5px; margin-top: 8px">Change username:</p>
@@ -32,7 +32,7 @@ color: #999999;">
             <p id="err-mess" class="err-mess" style="top: 60%;">Error message</p>
             <div class="button-container">
                 <button id="submit" class="cred-button">Submit</button>
-                <button id="register" class="cred-button">Reset Password</button>
+                <button id="reset" class="cred-button">Reset Password</button>
             </div>
         </div>
     </div>
@@ -132,7 +132,7 @@ color: #999999;">
 
         const result = await response.json();
 
-        /* TEMPLATE
+        /* TEMPLATE (outdated)
         <div class="project">
             <p style="text-align: center;">ProjectName</p>
             <ul class="member-list">
@@ -183,7 +183,7 @@ color: #999999;">
             case Codes["REDIRECT"]:
                 //TODO: let user know that his session is invalid
             default:
-                window.location.pathname = "/login";
+                window.location.href = "/login";
                 break;
         }   
     } 
@@ -236,10 +236,55 @@ color: #999999;">
             case Codes["REDIRECT"]:
                 //TODO: let user know that his session is invalid
             default:
-                window.location.pathname = "/login";
+                window.location.href = "/login";
                 break;
         }
     });
+
+    // TODO: implement a real password reset, for now it just utilizes the change username feature
+    document.getElementById("reset").addEventListener("click", async () => {
+        let oldp = document.getElementById("username");
+        let newp = document.getElementById("password");
+
+        const response = await fetch("/reset_password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    old: oldp.value,
+                    new: newp.value
+                }),
+                credentials: "include"
+        });
+
+        console.log(response);
+        const result = await response.json();
+        let err_mess = document.getElementById("err-mess");
+
+        switch (result.code) {
+            case Codes["REDIRECT"]:
+                // TODO: do something to let the user know invalid session
+                break;
+
+            case Codes["UNAUTHORIZED"]:
+            case Codes["FAIL"]:
+                err_mess.innerHTML = result.message;
+                oldp.value = "";
+                newp.value = "";
+                break;
+
+            case Codes["SUCCESS"]:
+                err_mess.innerHTML = "";
+                oldp.value = "";
+                newp.value = "";
+                alert("Password change succesfull");
+                break;
+
+            default:
+                break;
+        }
+    })
 </script>
 
 </body>
