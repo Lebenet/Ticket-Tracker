@@ -52,17 +52,19 @@ color: #999999;">
             </button>
         </div>
         <grid id="projects" class="projects-grid">
-            <div class="project">
-                <p style="text-align: center;">ProjectName</p>
-                <ul class="member-list">
-                    <li>Member 1</li>
-                    <li>Member 2</li>
-                    <li>Member 3</li>
-                    <li>Member 4</li>
-                    <li>Member 5</li>
-                    ...
-                </ul>
-            </div>
+            <button style="all: unset; display: inline-block; cursor: pointer;">
+                <div class="project">
+                    <p style="text-align: center;">ProjectName</p>
+                    <ul class="member-list">
+                        <li>Member 1</li>
+                        <li>Member 2</li>
+                        <li>Member 3</li>
+                        <li>Member 4</li>
+                        <li>Member 5</li>
+                        ...
+                    </ul>
+                </div>
+            </button>
             <div class="project">
                 <p style="text-align: center;">ProjectName</p>
                 <ul class="member-list">
@@ -159,7 +161,7 @@ color: #999999;">
                     const len = member_list.length;
                     const memb_c = result.count[i];
                     
-                    let html = "<div class=\"project\"><p style=\"text-align: center;overflow-wrap: break-word;\">" + proj.name + "</p>";
+                    let html = "<button id=\"load-project-" + proj.id + "\" style=\"all: unset; display: inline-block; cursor: pointer;\"><div class=\"project\"><p style=\"text-align: center;overflow-wrap: break-word;\">" + proj.name + "</p>";
 
                     if (len > 0) {
                         html += "<ul class=\"member-list\">";
@@ -171,8 +173,13 @@ color: #999999;">
                         html += "</ul>";
                     }
 
-                    html += "</div>"
+                    html += "</div></button>"
                     projects_grid.innerHTML += html;
+
+                    document.getElementById("load-project-" + proj.id).addEventListener("click", async () => {
+                        document.cookie = "projectId=" + proj.id + "; path=/";
+                        window.location.href = "/project";
+                    })
                 }
                 break;
 

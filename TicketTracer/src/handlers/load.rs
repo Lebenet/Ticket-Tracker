@@ -67,5 +67,22 @@ pub async fn get_project_page(
     Extension(session_store): Extension<SessionStore>,
     cookies: CookieJar
 ) -> impl IntoResponse {
-    Json({"not implemented"}).into_response()
+    if let Some(cookie) = cookies.get("session_id") {
+        let session_id = cookie.value().to_string();
+
+        // Check if session ID exists
+        let sessions = session_store.lock().await;
+        if !sessions.contains_key(&session_id) {
+            Redirect::to("/login").into_response()
+        } else {
+
+            let page = fs::read_to_string("frontend/project.html")
+                .await
+                .unwrap_or_else(|_| { "<h1> Could not load project page. </h1>".to_string() });
+
+            Html(page).into_response()
+        }
+    } else {
+        Redirect::to("/login").into_response()
+    }
 }

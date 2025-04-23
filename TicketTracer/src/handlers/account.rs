@@ -13,6 +13,7 @@ use rand::Rng;
 use sqlx::{Error, MySqlPool};
 use time::Duration;
 use crate::types::*;
+use crate::handlers::cust::*;
 
 pub async fn login(
     State(pool): State<Arc<MySqlPool>>,
@@ -147,7 +148,7 @@ pub async fn profile(
                     .bind(user.id)
                     .fetch_all(&*pool)
                     .await
-                    .unwrap_or_else(|_| vec![]);
+                    .unwrap_or(vec![]);
 
             // fetch other authorized users on each project, limit 5
             let mut users: Vec<Vec<Profile>> = vec![];
@@ -165,7 +166,7 @@ pub async fn profile(
                         .bind(user.id)
                         .fetch_all(&*pool)
                         .await
-                        .unwrap_or_else(|_| vec![]);
+                        .unwrap_or(vec![]);
 
                 //? Ugly, only temporary
                 // get total count of those users
@@ -188,15 +189,15 @@ pub async fn profile(
             }
 
             // send response to client
-            return Json(json!(
+            Json(json!(
             {
-                "user": user,
+                "user": Profile { id: user.id, username: user.username },
                 "projects": projects,
                 "users": users,
                 "count": count,
                 "code": Codes::SUCCESS
             }
-            )).into_response();
+            )).into_response()
     }
     _ => { // Redirect to /login if no valid session
         Redirect::to("/login").into_response()
@@ -267,19 +268,16 @@ pub async fn reset_password(
             let clr_cookie = del_session_cookie(cookie);
             // sending "Codes::REDIRECT" back to the user to have an opportunity to tell the user
             // something is wrong with their session
-            println!("invalid session");
             (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
         }
         (Codes::FOUND, _, Some(user)) => {
             // Check that password request doesn't contain empty passwords
             if !p_request.is_valid() {
-                println!("Invalid password request");
                 return code_response!(Codes::UNAUTHORIZED, "Invalid password request")
             }
 
             // Check password
             if !verify(p_request.old, &user.password_hash).unwrap_or(false) {
-                println!("Wrong password");
                 return code_response!(Codes::UNAUTHORIZED, "Wrong password");
             }
 
@@ -293,48 +291,12 @@ pub async fn reset_password(
 
             // Send response to client
             match result {
-                Ok(_) => { println!("success"); code_response!(Codes::SUCCESS, "") }
-                Err(_) => { println!("fail"); code_response!(Codes::FAIL, "Internal error") }
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
             }
         }
         // Here just a redirect because no session cookie was found
-        _ => { println!("no session found"); Redirect::to("/login").into_response() }
-    }
-}
-
-async fn check_session(
-    State(pool): State<Arc<MySqlPool>>,
-    Extension(session_store): Extension<SessionStore>,
-    cookies: &CookieJar
-) -> (Codes, Option<Cookie<'static>>, Option<User>) {
-    let cookie: Cookie = match cookies.get("session_id") {
-        Some(c) => c.to_owned(),
-        None => return (Codes::REDIRECT, None, None)
-    };
-
-    // get session id from cookie jar
-    let session_id: String = cookie.value().to_string();
-
-    // fetch user id from server sessions storage
-    let user_id: i32 =
-        session_store.lock().await
-            .get(&session_id)
-            .cloned()
-            .unwrap_or(0);
-    if user_id == 0 {
-        return (Codes::UNAUTHORIZED, Some(cookie), None);
-    }
-
-    // fetch user from database
-    let user: Option<User> =
-        sqlx::query_as::<_, User>("SELECT * FROM Users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&*pool)
-            .await
-            .unwrap_or(None);
-    match user {
-        None => (Codes::NOTFOUND, Some(cookie), None),
-        _ => (Codes::FOUND, None, user)
+        _ => Redirect::to("/login").into_response()
     }
 }
 
@@ -352,21 +314,6 @@ async fn session_cookie(storage: SessionStore, user_id: i32) -> Cookie<'static> 
 
     new_cookie("session_id", &session_id, "/",
                true, Duration::hours(1))
-}
-
-fn del_session_cookie(cookie: Cookie<'static>) -> Cookie<'static> {
-    // used to ensure same path and http_only
-    new_cookie(cookie.name(), "", cookie.path().unwrap_or("/"),
-               cookie.http_only().unwrap_or(false), Duration::seconds(0))
-}
-
-fn new_cookie(name: &str, value: &str, path: &str, http_only: bool, lifetime: Duration) -> Cookie<'static> {
-    let mut cookie = Cookie::new(name, value);
-    cookie.set_path(path);
-    cookie.set_http_only(http_only);
-    cookie.set_max_age(lifetime);
-
-    cookie.into_owned()
 }
 
 /* DEBUG

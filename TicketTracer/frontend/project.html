@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="project-body">
+
+    <h1 id="project-name">ProjectName</h1>
+    <div class="project-details">
+        <div style="display: flex; margin-left: -10%;"> <!-- centering wrapper -->
+            <div style="margin-left: 5%; text-align: center; display: flexbox; align-items: center; justify-content: center;">
+                <div>
+                    <p style="text-decoration: underline;">Owner:</p>
+                    <p id="owner" style="border-radius: 10px; background-color: #333; padding: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);">Username</p>
+                </div>
+            </div>
+            <div style="display: flex; margin-left: 20px; align-items: center; height: 100%;">
+                <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%;">
+                    <p>Members:</p>
+                    <button style="margin-top: -10px;">➕</button>
+                </div>
+                <grid id="member-grid" class="member-grid">
+                    <div class="member-wrapper">
+                        <p>test</p>
+                        <button class="del-button">
+                            <span>❌</span>
+                        </button>
+                    </div>
+                </grid>
+            </div>
+        </div>
+    </div>
+    <button id="new-ticket" style="margin-top: 50px; transform: scale(1.5);">NEW TICKET</button>
+    <grid id="tickets-grid" class="tickets-grid">
+        <div class="ticket">
+            <div class="ticket-infos">
+                <div style="display: flex;">
+                    <h3>Title</h3>
+                    <p id="ticket-{ticket_id}-status" style="margin-left: 10px; margin-top: 23px; font-size: small;">Open</p>
+                </div>
+                <p style="margin-top: -20px; margin-left: 10px; margin-bottom: 50px;">-bug</p>
+            </div>
+            <div class="ticket-member-list">
+                <p>Members:</p>
+                <ul id="members-{ticket_id}">
+                    <li>
+                        <div style="display: flex;">
+                            Member 1
+                            <button id="ticket-{ticket_id}-remove-user-{user_id}" class="del-button">❌</button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <p>Comments:</p>
+            <ul id="comments-{ticket_id}">
+                <p style="margin-top: -30px;"></p>
+                <p>"Comment 1" - user1</p>
+                <p>"Comment 2" - admin</p>
+            </ul>
+            <button id="del-ticket-{ticket_id}" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button>
+        </div>
+    </grid>
+
+<script>
+    const Codes = {
+        "SUCCESS": 1,
+        "FAIL": 2,
+        "UNAUTHORIZED": 3,
+        "NOTFOUND": 4,
+        "FOUND": 5,
+        "REDIRECT": 6
+    }
+
+    const AccessLevel = {
+        "Admin": 1,     // Also means owner
+        "Manager": 2,   // Can add/remove members and manage tickets
+        "User": 3,      // Default
+        "Spectator": 4  // Can not change anything
+    }
+
+    async function load() {
+        let response = await fetch("/project", {
+            method: 'POST',
+            credentials: "include"
+        })
+
+        let result = await response.json();
+        
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                const project = result.project;
+                document.getElementById("project-name").innerHTML = project.name;
+                document.getElementById("owner").innerHTML = result.owner;
+
+                let members_list = document.getElementById("member-grid");
+                members_list.innerHTML = "";
+                const members = result.users;
+                for (let i = 0; i < members.length; i++) {
+                    const member = members[i];
+                    const remove_id = "user-" + member.id + "-remove";
+                    let str = '<div class="member-wrapper"><p>' + member.username + '</p><button class="del-button" id="' + remove_id + '"><span>❌</span></button></div>';
+
+                    members_list.innerHTML += str;
+                    document.getElementById(remove_id).addEventListener("click", async () => {
+                        // TODO: remove member from project if source user is at least manager and target user is lower access level
+                    });
+                }
+
+                let ticket_grid = document.getElementById("tickets-grid");
+                ticket_grid.innerHTML = "";
+                const tickets = result.tickets;
+
+                for (let i = 0; i < tickets.length; i++) {
+                    const ticket = tickets[i];
+                    const ticket_info = ticket.ticket_info;
+                    const ticket_status_id = 'ticket-' + ticket_info.id + '-status';
+                    const ticket_members_id = 'members-' + ticket_info.id + '';
+                    const ticket_comments_id = 'comments-' + ticket_info.id + '';
+                    const del_ticket_id = 'del-ticket-' + ticket_info.id + '';
+
+                    let str = '<div class="ticket"><div class="ticket-infos"><div style="display: flex;"><h3>' + ticket_info.name + '</h3><p id="' + ticket_status_id + '" style="margin-left: 10px; margin-top: 23px; font-size: small;">' + ticket_info.status + '</p></div><p style="margin-top: -20px; margin-left: 10px; margin-bottom: 50px;">-' + ticket_info.category + '</p></div><div class="ticket-member-list"><p>Members:</p><ul id="' + ticket_members_id + '">';
+
+                    const members = ticket.users;
+                    for (let j = 0; j < members.length; j++) {
+                        let member = members[j];
+                        const ticket_remove_user_id = 'ticket-' + ticket_info.id + '-remove-user-' + member.id + '';
+
+                        let str2 = '<li><div style="display: flex;">' + member.username + '<button id="' + ticket_remove_user_id + '" class="del-button">❌</button></div></li>';
+
+                        str += str2;
+                    }
+                    str += '</ul></div><p>Comments:</p><ul id="' + ticket_comments_id + '"><p style="margin-top: -30px;"></p>';
+
+                    const comments = ticket.comments;
+                    for (let j = 0; j < comments.length; j++) {
+                        let comment = comments[j];
+
+                        let str2 = '<p>"' + comment.content + '" - ' + comment.username + '</p>';
+
+                        str += str2;
+                    }
+                    str += '</ul><button id="' + del_ticket_id + '" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button></div>';
+
+                    ticket_grid.innerHTML += str;
+                }
+
+                break;
+
+            case Codes["UNAUTHORIZED"]:
+                alert("You are not authorized on this project.");
+            case Codes["NOTFOUND"]:
+                // Invalid project ID
+                document.cookie = "projectId= path=/";
+                window.location.href = "/profile";
+                break;
+            
+            case Codes["FAIL"]:
+                //TODO: let user know that something went wrong internally
+                break;
+
+            case Codes["REDIRECT"]:
+                //TODO: let user know that his session is invalid 
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    }
+    load();
+
+
+    /* // TEMPLATE
+    <div class="member-wrapper">
+        <p>test</p>
+        <button class="del-button">
+            <span>❌</span>
+        </button>
+    </div>
+    */
+
+    /* // TEMPLATE
+    <div class="ticket">
+        <div class="ticket-infos">
+            <div style="display: flex;">
+                <h3>Title</h3>
+                <p id="ticket-{ticket_id}-status" style="margin-left: 10px; margin-top: 23px; font-size: small;">Open</p>
+            </div>
+            <p style="margin-top: -20px; margin-left: 10px; margin-bottom: 50px;">-bug</p>
+        </div>
+        <div class="ticket-member-list">
+            <p>Members:</p>
+            <ul id="members-{ticket_id}">
+                <li>
+                    <div style="display: flex;">
+                        Member 1
+                        <button id="ticket-{ticket_id}-remove-user-{user_id}" class="del-button">❌</button>
+                    </div>
+                </li>
+            </ul>
+        </div>
+        <p>Comments:</p>
+        <ul id="comments-{ticket_id}">
+            <p style="margin-top: -30px;"></p>
+            <p>"Comment 1" - user1</p>
+            <p>"Comment 2" - admin</p>
+        </ul>
+        <button id="del-ticket-{ticket_id}" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button>
+    </div>
+    */
+
+</script>
+
+</body>
+</html>

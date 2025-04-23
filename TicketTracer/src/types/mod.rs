@@ -52,6 +52,27 @@ pub struct Profile {
     pub username: String
 }
 
+#[derive(Serialize, Deserialize, FromRow, Debug)]
+pub struct TicketRaw {
+    pub id: i32,
+    pub name: String,
+    pub status: String,
+    pub category: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Ticket {
+    pub ticket_info: TicketRaw,
+    pub users: Vec<Profile>,
+    pub comments: Vec<Comment>
+}
+
+#[derive(Serialize, Deserialize, FromRow, Debug)]
+pub struct Comment {
+    pub username: String,
+    pub content: String
+}
+
 #[derive(Debug, Serialize_repr, Eq, PartialEq)]
 #[repr(i32)]
 pub enum Codes {
