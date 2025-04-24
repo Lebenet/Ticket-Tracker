@@ -142,7 +142,7 @@ pub async fn profile(
             // fetch projects where user's authorized (including his own)
             let projects: Vec<Project> =
                 sqlx::query_as::<_, Project>(
-            "SELECT * FROM Projects AS pr
+            "SELECT pr.id, pr.name, pr.create_time, pr.owner_id FROM Projects AS pr
                 JOIN Permissions AS perm ON pr.id = perm.project_id
                 WHERE perm.user_id = ?")
                     .bind(user.id)

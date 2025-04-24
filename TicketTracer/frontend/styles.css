@@ -193,13 +193,14 @@
     width: 100%;
     gap: 10px;
     box-sizing: border-box;
+    justify-content: center;
+    align-items: start;
 }
 
 .project {
     border: 1px solid rgba(255, 255, 255, 0.2);
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 30px;
-    max-width: 400px;
 }
 
 .new-project-button {
@@ -319,7 +320,7 @@
 
 .ticket-member-list {
     margin-top: -120px;
-    margin-left: 150px;
+    margin-left: 200px;
 
     transform: scale(0.8);
 }

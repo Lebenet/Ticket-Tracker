@@ -4,7 +4,6 @@ macro_rules! code_response {
     };
 }
 
-
 use std::{sync::Arc};
 use axum::{Extension, Json, extract::State, response::{IntoResponse, Redirect, Response}};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
@@ -145,9 +144,52 @@ pub async fn project(
 pub async fn new_project(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(project): Json<NewProjectRequest>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let result = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match result {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+
+        }
+        (Codes::FOUND, _, Some(user)) => {
+            // begin transaction
+            let mut tx = match pool.begin().await {
+                Ok(tx) => tx,
+                Err(_) => return code_response!(Codes::FAIL, "Could not begin transaction"),
+            };
+
+            let res =
+                sqlx::query!("
+                INSERT INTO Projects (name, owner_id)
+                VALUES (?, ?);", project.name, user.id)
+                    .execute(&mut *tx)
+                    .await;
+
+            let pid: i32 = match res  {
+                Ok(q) => q.last_insert_id() as i32,
+                Err(_) => {
+                    let _ = tx.rollback().await;
+                    return code_response!(Codes::FAIL, "Internal error");
+                }
+            };
+
+            let _ =
+                sqlx::query!("
+                INSERT INTO Permissions (user_id, project_id, permission_level)
+                VALUES (?, ?, (SELECT pd.id FROM PermissionsDesc AS pd WHERE pd.name = \"Admin\"));", user.id, pid)
+                    .execute(&mut *tx)
+                    .await;
+
+            match tx.commit().await {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn edit_project(
@@ -185,17 +227,76 @@ pub async fn project_remove_member(
 pub async fn new_ticket(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(ticket): Json<NewTicketRequest>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let result = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match result {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        }
+        (Codes::FOUND, _, Some(user)) => {
+            let mut tx = match pool.begin().await {
+                Ok(tx) => tx,
+                Err(_) => return code_response!(Codes::FAIL, "Could not begin transaction")
+            };
+
+            let res =
+                sqlx::query!("INSERT INTO Tickets (name, author, status, project_id, category)\
+                              VALUES (?, ?, ?, ?, ?);", ticket.name, user.id, ticket.status, ticket.project_id, ticket.category)
+                    .execute(&mut *tx)
+                    .await;
+
+            let tid: i32 = match res {
+                Ok(q) => q.last_insert_id() as i32,
+                Err(_) => {
+                    let _ = tx.rollback().await;
+                    return code_response!(Codes::FAIL, "Internal error")
+                }
+            };
+
+            let _ =
+                sqlx::query!("INSERT INTO TicketUsers (ticket_id, user_id)
+                              VALUES (?, ?);", tid, user.id)
+                    .execute(&mut *tx)
+                    .await;
+
+            match tx.commit().await {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn delete_ticket(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(ticket_id) : Json<Int>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let result = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match result {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        }
+        (Codes::FOUND, _, Some(_)) => {
+
+            let res =
+                sqlx::query!("DELETE FROM Tickets WHERE id = ?", ticket_id.value)
+                    .execute(&*pool)
+                    .await;
+            if let Err(_) = res {
+                code_response!(Codes::FAIL, "Internal error")
+            } else {
+                code_response!(Codes::SUCCESS, "")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn edit_ticket_state(

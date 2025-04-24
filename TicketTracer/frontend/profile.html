@@ -125,6 +125,14 @@ color: #999999;">
         "REDIRECT": 6
     }
     
+    function loadProject(event) {
+        const button = event.currentTarget; // the button that was clicked
+        const projectId = button.id.replace("load-project-", "");
+        //console.log('Project ID: ' + projectId);
+        document.cookie = "projectId=" + projectId + "; path=/";
+        window.location.href = "/project";
+    }
+
     async function _get_profile() {
 
         const response = await fetch("/profile", {
@@ -160,27 +168,34 @@ color: #999999;">
                     const member_list = result.users[i];
                     const len = member_list.length;
                     const memb_c = result.count[i];
-                    
                     let html = "<button id=\"load-project-" + proj.id + "\" style=\"all: unset; display: inline-block; cursor: pointer;\"><div class=\"project\"><p style=\"text-align: center;overflow-wrap: break-word;\">" + proj.name + "</p>";
 
+                    html += "<ul class=\"member-list\">";
+                    html += "<p style=\"margin: -10px 0px 5px -20px; text-decoration: underline;\">Members (" + (memb_c + 1) + "):</p>"
+
                     if (len > 0) {
-                        html += "<ul class=\"member-list\">";
-                        html += "<p style=\"margin: -10px 0px 5px -20px; text-decoration: underline;\">Members (" + (memb_c + 1) + "):</p>"    
                         for (let j = 0; j < len; j++) {
                             html += "<li>" + member_list[j].username + "</li>";
                         }
                         if (memb_c >= 5) html += "...";
-                        html += "</ul>";
                     }
+                    html += "</ul>";
 
                     html += "</div></button>"
                     projects_grid.innerHTML += html;
 
-                    document.getElementById("load-project-" + proj.id).addEventListener("click", async () => {
-                        document.cookie = "projectId=" + proj.id + "; path=/";
-                        window.location.href = "/project";
-                    })
+                    document.getElementById("load-project-" + proj.id).onclick = loadProject;
                 }
+
+                // attach click handler
+                for (let i = 0; i < result.projects.length; i++) {
+                    const proj = result.projects[i];
+                    const btn = document.getElementById("load-project-" + proj.id);
+                    if (btn) {
+                        btn.onclick = loadProject;
+                    }
+                }
+
                 break;
 
             case Codes["FAIL"]:

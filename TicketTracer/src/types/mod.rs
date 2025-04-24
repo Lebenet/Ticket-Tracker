@@ -22,6 +22,19 @@ pub struct Project {
     pub owner_id: i32
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewProjectRequest {
+    pub name: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewTicketRequest {
+    pub name: String,
+    pub status: String,
+    pub category: String,
+    pub project_id: i32
+}
+
 #[derive(Deserialize, Debug)]
 pub struct LoginRequest {
     pub username: String,

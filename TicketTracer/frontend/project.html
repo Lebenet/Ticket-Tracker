@@ -121,7 +121,7 @@
                     const ticket_comments_id = 'comments-' + ticket_info.id + '';
                     const del_ticket_id = 'del-ticket-' + ticket_info.id + '';
 
-                    let str = '<div class="ticket"><div class="ticket-infos"><div style="display: flex;"><h3>' + ticket_info.name + '</h3><p id="' + ticket_status_id + '" style="margin-left: 10px; margin-top: 23px; font-size: small;">' + ticket_info.status + '</p></div><p style="margin-top: -20px; margin-left: 10px; margin-bottom: 50px;">-' + ticket_info.category + '</p></div><div class="ticket-member-list"><p>Members:</p><ul id="' + ticket_members_id + '">';
+                    let str = '<div id="' + ticket_info.id + '" class="ticket"><div class="ticket-infos"><div style="display: flex;"><h3>' + ticket_info.name + '</h3><p id="' + ticket_status_id + '" style="margin-left: 10px; margin-top: 23px; font-size: small;">' + ticket_info.status + '</p></div><p style="margin-top: -20px; margin-left: 10px; margin-bottom: 50px;">-' + ticket_info.category + '</p></div><div class="ticket-member-list"><p>Members:</p><ul id="' + ticket_members_id + '">';
 
                     const members = ticket.users;
                     for (let j = 0; j < members.length; j++) {
@@ -131,6 +131,11 @@
                         let str2 = '<li><div style="display: flex;">' + member.username + '<button id="' + ticket_remove_user_id + '" class="del-button">❌</button></div></li>';
 
                         str += str2;
+
+                        // event listeners
+                        document.getElementById(ticket_remove_user_id);addEventListener("click", async () => {
+                            // TODO remove user from ticket
+                        });
                     }
                     str += '</ul></div><p>Comments:</p><ul id="' + ticket_comments_id + '"><p style="margin-top: -30px;"></p>';
 
@@ -145,6 +150,40 @@
                     str += '</ul><button id="' + del_ticket_id + '" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button></div>';
 
                     ticket_grid.innerHTML += str;
+
+                    // event listeners
+                    document.getElementById(del_ticket_id).addEventListener("click", async () => {
+                        //
+
+                        let response = await fetch("/delete_ticket", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                value: ticket_info.id
+                            }),
+                            credentials: "include"
+                        });
+
+                        let result = await response.json();
+
+                        switch (result.code) {
+                            case Codes["SUCCESS"]:
+                                document.getElementById(ticket_info.id).remove();
+                                break;
+
+                            case Codes["FAIL"]:
+                                // Let user know that something went wrong internally
+                                break;
+
+                            case Codes["REDIRECT"]:
+                                // Let user know that something is wrong with their session
+                            default:
+                                windows.location.href = "/login";
+                                break;
+                        }
+                    });
                 }
 
                 break;
