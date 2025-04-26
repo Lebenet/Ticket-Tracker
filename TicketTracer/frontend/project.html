@@ -63,6 +63,30 @@
             <button id="del-ticket-{ticket_id}" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button>
         </div>
     </grid>
+    <div id="popup" class="popup-wrapper">
+        <div class="popup">
+            <p id="error-message" class="err-mess"></p>
+            <div class="input-container">
+                <span class="icon">🖊️</span>
+                <input id="ticket-name" class="cred-input" type="text" placeholder="Ticket name:">
+            </div>
+            <div class="button-container" style="margin-top: 0px;">
+                <div style="display: flex; flex-direction: column; justify-content: center; text-align: center; gap: 5px;">
+                    <label for="category">Choose a category:</label>
+                    <select id="category">
+                        <option value="Minor bug">Minor bug</option>
+                        <option value="Major bug">Major bug</option>
+                        <option value="Tweak">Tweak</option>
+                        <option value="Feature">Feature</option>
+                    </select>
+                </div>
+            </div>
+            <div class="button-container">
+                <button id="send-new-ticket" class="cred-button">Submit</button>
+            </div>
+            <button id="cancel-new-ticket" style="position: absolute; top: 5px; right: 5px; transform: scale(1.2);" class="del-button">❌</button>
+        </div>
+    </div>
 
 <script>
     const Codes = {
@@ -208,6 +232,62 @@
         }
     }
     load();
+
+    
+
+    document.getElementById("new-ticket").addEventListener("click", () => {
+        document.getElementById("popup").classList.add("active");
+    });
+
+    document.getElementById("cancel-new-ticket").addEventListener("click", () => {
+        document.getElementById("popup").classList.remove("active");
+    });
+
+    document.getElementById("send-new-ticket").addEventListener("click", async () => {
+        console.log(document.getElementById("ticket-name").value);
+        console.log(document.getElementById("category").value);
+        console.log(parseInt(document.cookie.match(" *projectId=([0-9]+)")[1]));
+        let response = await fetch("/new_ticket", {
+            method: "POST",
+            credentials: "include",
+            headers : {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: document.getElementById("ticket-name").value,
+                status: "Open",
+                category: document.getElementById("category").value,
+                project_id: parseInt(document.cookie.match(" *projectId=([0-9]+)")[1])
+            })
+        });
+        console.log(response.body);
+
+        /*
+        pub name: String,
+        pub status: String,
+        pub category: String,
+        pub project_id: i32
+        */
+
+        let result = await response.json();
+        let err_mess = document.getElementById("error-message");
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                location.reload(true);
+                break;
+
+            case Codes["FAIL"]:
+                err_mess.innerHTML = result.message;
+                break;
+
+            case Cases["REDIRECT"]:
+                //TODO: let user know that session is invalid before redirect
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    });
 
 
     /* // TEMPLATE

@@ -27,12 +27,20 @@ pub struct NewProjectRequest {
     pub name: String
 }
 
+impl NewProjectRequest {
+    pub fn is_valid(&self) -> bool { self.name != "" }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewTicketRequest {
     pub name: String,
     pub status: String,
     pub category: String,
     pub project_id: i32
+}
+
+impl NewTicketRequest {
+    pub fn is_valid(&self) -> bool { self.name != "" && self.status != "" && self.category != "" && self.project_id != 0 }
 }
 
 #[derive(Deserialize, Debug)]

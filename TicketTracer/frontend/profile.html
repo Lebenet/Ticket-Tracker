@@ -113,6 +113,21 @@ color: #999999;">
         </grid>
     </div>
 </div>
+<div id="popup" class="popup-wrapper">
+    <div class="popup">
+        <div class="input-container">
+            <span class="icon">🖊️</span>
+            <input id="proj-name" class="cred-input" type="text" placeholder="Project name:">
+        </div>
+        <p id="error-message" class="err-mess"></p>
+        <div class="button-container" style="margin-top: 10px;">
+            <button id="send-new-project" class="cred-button">
+                Submit
+            </button>
+        </div>
+        <button id="cancel-new-project" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button>
+    </div>
+</div>
 
 <script>
 
@@ -307,6 +322,46 @@ color: #999999;">
                 break;
         }
     })
+
+    document.getElementById("new-project").addEventListener("click", () => {
+        document.getElementById("popup").classList.add("active");
+    });
+
+    document.getElementById("cancel-new-project").addEventListener("click", () => {
+        document.getElementById("popup").classList.remove("active");
+    });
+
+    document.getElementById("send-new-project").addEventListener("click", async () => {
+        let response = await fetch("/new_project", {
+            method: "POST",
+            credentials: "include",
+            headers : {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: document.getElementById("proj-name").value
+            })
+        });
+
+        let result = await response.json();
+        let err_mess = document.getElementById("error-message");
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                location.reload(true);
+                break;
+
+            case Codes["FAIL"]:
+                err_mess.innerHTML = result.message;
+                break;
+
+            case Cases["REDIRECT"]:
+                //TODO: let user know that session is invalid before redirect
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    });
 </script>
 
 </body>

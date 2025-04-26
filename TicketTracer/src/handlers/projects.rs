@@ -155,6 +155,10 @@ pub async fn new_project(
 
         }
         (Codes::FOUND, _, Some(user)) => {
+            if !project.is_valid() {
+                return code_response!(Codes::FAIL, "Invalid project name");
+            }
+
             // begin transaction
             let mut tx = match pool.begin().await {
                 Ok(tx) => tx,
@@ -237,6 +241,10 @@ pub async fn new_ticket(
             (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
         }
         (Codes::FOUND, _, Some(user)) => {
+            if !ticket.is_valid() {
+                return code_response!(Codes::FAIL, "Invalid ticket request");
+            }
+
             let mut tx = match pool.begin().await {
                 Ok(tx) => tx,
                 Err(_) => return code_response!(Codes::FAIL, "Could not begin transaction")
