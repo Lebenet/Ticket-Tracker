@@ -245,7 +245,8 @@ pub async fn new_ticket(
                 return code_response!(Codes::FAIL, "Invalid ticket request");
             }
 
-            let pid: i32 = match cookies.get("projectId") {
+            //TODO: check that user is authed (this is a sketchy check that can easily be bypassed)
+            match cookies.get("projectId") {
                 Some(c) => {
                     let id = str::parse::<i32>(c.value()).unwrap_or(0);
 
@@ -255,8 +256,6 @@ pub async fn new_ticket(
                     else if id != ticket.project_id {
                         return code_response!(Codes::FAIL, "Invalid project id");
                     }
-
-                    id
                 },
                 None => return Redirect::to("/profile").into_response()
             };
