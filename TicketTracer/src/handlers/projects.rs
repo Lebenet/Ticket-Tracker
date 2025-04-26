@@ -245,6 +245,22 @@ pub async fn new_ticket(
                 return code_response!(Codes::FAIL, "Invalid ticket request");
             }
 
+            let pid: i32 = match cookies.get("projectId") {
+                Some(c) => {
+                    let id = str::parse::<i32>(c.value()).unwrap_or(0);
+
+                    if id == 0 {
+                        return Redirect::to("/profile").into_response();
+                    }
+                    else if id != ticket.project_id {
+                        return code_response!(Codes::FAIL, "Invalid project id");
+                    }
+
+                    id
+                },
+                None => return Redirect::to("/profile").into_response()
+            };
+
             let mut tx = match pool.begin().await {
                 Ok(tx) => tx,
                 Err(_) => return code_response!(Codes::FAIL, "Could not begin transaction")
