@@ -32,6 +32,26 @@ impl NewProjectRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct AddUserRequest {
+    pub username: String
+}
+
+impl AddUserRequest {
+    pub fn is_valid(&self) -> bool { self.username != "" }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RemoveUserRequest {
+    pub user_id: i32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RemoveTicketUserRequest {
+    pub ticket_id: i32,
+    pub user_id: i32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NewTicketRequest {
     pub name: String,
     pub status: String,

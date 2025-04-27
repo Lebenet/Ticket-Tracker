@@ -14,7 +14,11 @@ use crate::types::*;
 
 use crate::handlers::cust::*;
 
-// TODO
+// TODO LIST:
+// FOR ALL: CHECK USER AUTH ON PROJECT
+// FOR LOAD TICKET: UNLESS >=MANAGER, ONLY SHOW TICKETS ASSIGNED TO
+// FOR REMOVE USER FROM PROJECT: NOT LET IF TARGET IS OWNER (has to be done in profile) | IF USER IS NOT >= MANAGER
+// FOR REMOVE USER FROM TICKET: NOT LET IF USER IS NOT AUTHOR AND IS NOT >= MANAGER
 pub async fn project(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
@@ -92,7 +96,7 @@ pub async fn project(
                 // fetch assigned users metadata
                 let res =
                     sqlx::query_as::<_, Profile>("
-                    SELECT tu.id, u.username FROM Users AS u
+                    SELECT u.id, u.username FROM Users AS u
                     JOIN TicketUsers AS tu ON u.id = tu.user_id
                     WHERE tu.ticket_id = ?")
                         .bind(ticket.id)
@@ -209,23 +213,107 @@ pub async fn delete_project(
     Extension(session_store): Extension<SessionStore>,
     cookies: CookieJar
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match response {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        },
+        (Codes::FOUND, _, Some(user)) => {
+            let pid = match cookies.get("projectId") {
+                Some(c) => c.value(),
+                None => return Redirect::to("/profile").into_response()
+            };
+
+            let res =
+                sqlx::query!("DELETE FROM Projects WHERE id = ?", pid)
+                    .execute(&*pool)
+                    .await;
+
+            match res {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn project_add_member(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(added_u): Json<AddUserRequest>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match response {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        },
+        (Codes::FOUND, _, Some(user)) => {
+            if !added_u.is_valid() {
+                return code_response!(Codes::FAIL, "Invalid username");
+            }
+
+            let pid = match cookies.get("projectId") {
+                Some(c) => c.value(),
+                None => return Redirect::to("/profile").into_response()
+            };
+
+            let uid: i32 = match sqlx::query!("
+                SELECT id FROM Users WHERE username = ?;", added_u.username)
+                .fetch_optional(&*pool)
+                .await {
+                Ok(Some(u)) => u.id,
+                Ok(None) => return code_response!(Codes::NOTFOUND, "Invalid username"),
+                Err(_) => return code_response!(Codes::FAIL, "Internal error")
+            };
+
+            let res =
+                sqlx::query!("INSERT INTO Permissions (user_id, project_id) VALUES (?, ?)", uid, pid)
+                    .execute(&*pool)
+                    .await;
+
+            match res {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn project_remove_member(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(removed_u): Json<RemoveUserRequest>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match response {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        },
+        (Codes::FOUND, _, Some(user)) => {
+            let pid = match cookies.get("projectId") {
+                Some(c) => c.value(),
+                None => return Redirect::to("/profile").into_response()
+            };
+
+            let res =
+                sqlx::query!("DELETE FROM Permissions WHERE user_id = ? AND project_id = ?", removed_u.user_id, pid)
+                    .execute(&*pool)
+                    .await;
+
+            match res {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn new_ticket(
@@ -341,9 +429,29 @@ pub async fn assign_user_ticket(
 pub async fn remove_user_ticket(
     State(pool): State<Arc<MySqlPool>>,
     Extension(session_store): Extension<SessionStore>,
-    cookies: CookieJar
+    cookies: CookieJar,
+    Json(req): Json<RemoveTicketUserRequest>
 ) -> impl IntoResponse {
-    Json(json!({"error": "Not Implemented"}))
+    let response = check_session(State(pool.clone()), Extension(session_store), &cookies).await;
+    match response {
+        (Codes::UNAUTHORIZED | Codes::NOTFOUND, Some(cookie), _) => {
+            let clr_cookie = del_session_cookie(cookie);
+            (cookies.remove(clr_cookie), code_response!(Codes::REDIRECT, "Invalid session")).into_response()
+        },
+        (Codes::FOUND, _, Some(user)) => {
+            println!("{}, {}", req.ticket_id, req.user_id);
+            let res =
+                sqlx::query!("DELETE FROM TicketUsers WHERE ticket_id = ? AND user_id = ?", req.ticket_id, req.user_id)
+                    .execute(&*pool)
+                    .await;
+
+            match res {
+                Ok(_) => code_response!(Codes::SUCCESS, ""),
+                Err(_) => code_response!(Codes::FAIL, "Internal error")
+            }
+        }
+        _ => Redirect::to("/login").into_response()
+    }
 }
 
 pub async fn comment_ticket(
@@ -353,4 +461,3 @@ pub async fn comment_ticket(
 ) -> impl IntoResponse {
     Json(json!({"error": "Not Implemented"}))
 }
-

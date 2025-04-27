@@ -52,19 +52,24 @@ color: #999999;">
             </button>
         </div>
         <grid id="projects" class="projects-grid">
-            <button style="all: unset; display: inline-block; cursor: pointer;">
-                <div class="project">
-                    <p style="text-align: center;">ProjectName</p>
-                    <ul class="member-list">
-                        <li>Member 1</li>
-                        <li>Member 2</li>
-                        <li>Member 3</li>
-                        <li>Member 4</li>
-                        <li>Member 5</li>
-                        ...
-                    </ul>
-                </div>
-            </button>
+            <div style="display: inline-block; position: relative;">
+                <button style="all: unset; display: block; cursor: pointer; width: 100%;">
+                    <div class="project">
+                        <p style="text-align: center;">ProjectName</p>
+                        <ul class="member-list">
+                            <li>Member 1</li>
+                            <li>Member 2</li>
+                            <li>Member 3</li>
+                            <li>Member 4</li>
+                            <li>Member 5</li>
+                            ...
+                        </ul>
+                    </div>
+                </button>
+                <button id="del-project-{project-id}" class="del-button" style="position: absolute; top: 10px; right: 10px; transform: scale(1.2);">
+                    ❌
+                </button>
+            </div>
             <div class="project">
                 <p style="text-align: center;">ProjectName</p>
                 <ul class="member-list">
@@ -148,6 +153,37 @@ color: #999999;">
         window.location.href = "/project";
     }
 
+    async function delProject(event) {
+        const button = event.currentTarget;
+        const projectId = button.id.replace("del-project-", "");
+
+        document.cookie = "projectId=" + projectId + "; path=/";
+
+        let response = await fetch("/delete_project", {
+            method: "POST",
+            credentials: "include"
+        });
+
+        let result = await response.json();
+        console.log(result.code);
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                button.parentElement.remove();
+                break;
+
+            case Codes["FAIL"]:
+                //TODO: let user know something went wrong internally
+                break;
+
+            case Codes["REDIRECT"]:
+                //TODO: let user know session is expired
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    }
+
     async function _get_profile() {
 
         const response = await fetch("/profile", {
@@ -183,7 +219,7 @@ color: #999999;">
                     const member_list = result.users[i];
                     const len = member_list.length;
                     const memb_c = result.count[i];
-                    let html = "<button id=\"load-project-" + proj.id + "\" style=\"all: unset; display: inline-block; cursor: pointer;\"><div class=\"project\"><p style=\"text-align: center;overflow-wrap: break-word;\">" + proj.name + "</p>";
+                    let html = "<div style=\"display: inline-block; position: relative;\"><button id=\"load-project-" + proj.id + "\" style=\"all: unset; display: block; cursor: pointer; width: 100%;\"><div class=\"project\"><p style=\"text-align: center;overflow-wrap: break-word;\">" + proj.name + "</p>";
 
                     html += "<ul class=\"member-list\">";
                     html += "<p style=\"margin: -10px 0px 5px -20px; text-decoration: underline;\">Members (" + (memb_c + 1) + "):</p>"
@@ -196,10 +232,8 @@ color: #999999;">
                     }
                     html += "</ul>";
 
-                    html += "</div></button>"
+                    html += '</div></button><button id="del-project-' + proj.id + '" class="del-button" style="position: absolute; top: 10px; right: 10px; transform: scale(1.2); z-layer: 9999;">❌</button></div>';
                     projects_grid.innerHTML += html;
-
-                    document.getElementById("load-project-" + proj.id).onclick = loadProject;
                 }
 
                 // attach click handler
@@ -208,6 +242,10 @@ color: #999999;">
                     const btn = document.getElementById("load-project-" + proj.id);
                     if (btn) {
                         btn.onclick = loadProject;
+                    }
+                    const del_btn = document.getElementById("del-project-" + proj.id);
+                    if (del_btn) {
+                        del_btn.onclick = delProject;
                     }
                 }
 

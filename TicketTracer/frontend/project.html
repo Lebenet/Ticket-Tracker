@@ -20,7 +20,7 @@
             <div style="display: flex; margin-left: 20px; align-items: center; height: 100%;">
                 <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%;">
                     <p>Members:</p>
-                    <button style="margin-top: -10px;">➕</button>
+                    <button id="add-user" style="margin-top: -10px;">➕</button>
                 </div>
                 <grid id="member-grid" class="member-grid">
                     <div class="member-wrapper">
@@ -87,6 +87,19 @@
             <button id="cancel-new-ticket" style="position: absolute; top: 5px; right: 5px; transform: scale(1.2);" class="del-button">❌</button>
         </div>
     </div>
+    <div id="popup2" class="popup-wrapper">
+        <div class="popup">
+            <p id="error-message-2" class="err-mess"></p>
+            <div class="input-container">
+                <span class="icon">➕</span>
+                <input id="member-name" class="cred-input" type="text" placeholder="Username:">
+            </div>
+            <div class="button-container">
+                <button id="send-add-user" class="cred-button">Submit</button>
+            </div>
+            <button id="cancel-add-user" style="position: absolute; top: 5px; right: 5px; transform: scale(1.2);" class="del-button">❌</button>
+        </div>
+    </div>
 
 <script>
     const Codes = {
@@ -103,6 +116,151 @@
         "Manager": 2,   // Can add/remove members and manage tickets
         "User": 3,      // Default
         "Spectator": 4  // Can not change anything
+    }
+
+    
+
+    document.getElementById("add-user").addEventListener("click", () => {
+        document.getElementById("popup2").classList.add("active");
+    });
+
+    document.getElementById("cancel-add-user").addEventListener("click", () => {
+        document.getElementById("popup2").classList.remove("active");
+    });
+
+    document.getElementById("send-add-user").addEventListener("click", async () => {
+        let response = await fetch("/project_add_member", {
+            credentials: "include",
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: document.getElementById("member-name").value
+            })
+        });
+
+        let result = await response.json();
+        let err_mess = document.getElementById("error-message-2");
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                location.reload(true);
+                break;
+
+            case Codes["NOTFOUND"]:
+            case Codes["FAIL"]:
+                err_mess.innerHTML = result.message;
+                break;
+
+            case Cases["REDIRECT"]:
+                //TODO: let user know that session is invalid before redirect
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    });
+
+    async function ticketRemoveUser(event) {
+        const button = event.currentTarget;
+        const match = button.id.match(/ticket-([0-9]+)-remove-user-([0-9]+)/);
+        const ticket_id = parseInt(match[1]);
+        const user_id = parseInt(match[2]);
+        
+        let response = await fetch("/remove_user_ticket", {
+            credentials: "include",
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                ticket_id: ticket_id,
+                user_id: user_id
+            })
+        });
+
+        let result = await response.json();
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                button.parentElement.parentElement.remove();
+                break;
+
+            case Codes["FAIL"]:
+                break;
+
+            case Codes["REDIRECT"]:
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    }
+
+    async function projectRemoveUser(event) {
+        const button = event.currentTarget;
+        const user_id = parseInt(button.id.replace("user-", "").replace("-remove", ""));
+        
+        let response = await fetch("/project_remove_member", {
+            credentials: "include",
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                user_id: user_id
+            })
+        });
+
+        let result = await response.json();
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                button.parentElement.remove();
+                break;
+
+            case Codes["FAIL"]:
+                break;
+
+            case Codes["REDIRECT"]:
+            default:
+                window.location.href = "/login";
+                break;
+        }
+    }
+
+    async function delTicket(event) {
+        const button = event.currentTarget;
+        const ticket_id = parseInt(button.id.replace("del-ticket-", ""));
+
+        let response = await fetch("/delete_ticket", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                value: ticket_id
+            }),
+            credentials: "include"
+        });
+
+        let result = await response.json();
+
+        switch (result.code) {
+            case Codes["SUCCESS"]:
+                document.getElementById(ticket_id).remove();
+                break;
+
+            case Codes["FAIL"]:
+                console.log(result.message);
+                // Let user know that something went wrong internally
+                break;
+
+            case Codes["REDIRECT"]:
+                // Let user know that something is wrong with their session
+            default:
+                windows.location.href = "/login";
+                break;
+        }
     }
 
     async function load() {
@@ -128,9 +286,6 @@
                     let str = '<div class="member-wrapper"><p>' + member.username + '</p><button class="del-button" id="' + remove_id + '"><span>❌</span></button></div>';
 
                     members_list.innerHTML += str;
-                    document.getElementById(remove_id).addEventListener("click", async () => {
-                        // TODO: remove member from project if source user is at least manager and target user is lower access level
-                    });
                 }
 
                 let ticket_grid = document.getElementById("tickets-grid");
@@ -174,40 +329,30 @@
                     str += '</ul><button id="' + del_ticket_id + '" class="del-button" style="position: absolute; right: 5px; top: 5px; transform: scale(1.2);">❌</button></div>';
 
                     ticket_grid.innerHTML += str;
+                }
 
-                    // event listeners
-                    document.getElementById(del_ticket_id).addEventListener("click", async () => {
-                        //
+                // event listeners
+                for (let i = 0; i < tickets.length; i++) {
+                    const ticket = tickets[i];
+                    const ticket_info = ticket.ticket_info;
+                    // ticket delete
+                    const del_ticket_id = 'del-ticket-' + ticket_info.id + '';
+                    document.getElementById(del_ticket_id).addEventListener("click", delTicket);
 
-                        let response = await fetch("/delete_ticket", {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                value: ticket_info.id
-                            }),
-                            credentials: "include"
-                        });
+                    // ticket remove member
+                    const members = ticket.users;
+                    for (let j = 0; j < members.length; j++) {
+                        let member = members[j];
+                        const ticket_remove_user_id = 'ticket-' + ticket_info.id + '-remove-user-' + member.id + '';
+                        document.getElementById(ticket_remove_user_id).addEventListener("click", ticketRemoveUser);
+                    }
+                }
 
-                        let result = await response.json();
-
-                        switch (result.code) {
-                            case Codes["SUCCESS"]:
-                                document.getElementById(ticket_info.id).remove();
-                                break;
-
-                            case Codes["FAIL"]:
-                                // Let user know that something went wrong internally
-                                break;
-
-                            case Codes["REDIRECT"]:
-                                // Let user know that something is wrong with their session
-                            default:
-                                windows.location.href = "/login";
-                                break;
-                        }
-                    });
+                
+                // project remove member
+                for (let i = 0; i < members.length; i++) {
+                    const remove_id = "user-" + members[i].id + "-remove";
+                    document.getElementById(remove_id).addEventListener("click", projectRemoveUser);
                 }
 
                 break;
